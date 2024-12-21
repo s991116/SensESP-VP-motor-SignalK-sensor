@@ -1,10 +1,10 @@
-# SensESP Project Template
+# SensESP SignalK Sensor for Volvo Penta Motor
 
-This repository provides a template for [SensESP](https://github.com/SignalK/SensESP/) projects.
-Fork, clone or download the repository and try building and uploading the project to an ESP32 device.
-You should immediately see output on the serial monitor! Similarly, you should be able to connect to
-the WiFi access point with the same name as the device. The password is `thisisfine`.
+## The SensESP will have input from 
+* Multiple 1-wire tempature sensors attached to the engine
+* Input switch to count enginehours
 
-To customize the template for your own purposes, edit the `src/main.cpp` and `platformio.ini` files.
+You should be able to connect to the WiFi access point with the same name as the device. The password is `thisisfine`.
 
-Comprehensive documentation for SensESP, including how to get started with your own project, is available at the [SensESP documentation site](https://signalk.org/SensESP/).
+## Based on the SensESP template
+The project is based on the SensESP template, more info on the template can be found here [SensESP documentation site](https://signalk.org/SensESP/).
