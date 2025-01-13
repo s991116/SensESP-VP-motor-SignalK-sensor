@@ -10,8 +10,20 @@
 #include "sensesp/signalk/signalk_output.h"
 #include "sensesp/system/lambda_consumer.h"
 #include "sensesp_app_builder.h"
+#include "sensesp_onewire/onewire_temperature.h"
+#include "sensesp/transforms/linear.h"
+#include <Adafruit_BME280.h>
+
 
 using namespace sensesp;
+using namespace sensesp::onewire;
+
+#define ONE_WIRE_BUS_PIN 15
+
+Adafruit_BME280 bme280; // I2C
+
+float read_temp_callback() { return (bme280.readTemperature());}
+float read_pressure_callback() { return (bme280.readPressure());}
 
 // The setup function performs one-time application initialization.
 void setup() {
@@ -24,10 +36,15 @@ void setup() {
                     ->set_hostname("vp-motor-sensor")
                     // Optionally, hard-code the WiFi and Signal K server
                     // settings. This is normally not needed.
-                    //->set_wifi_client("My WiFi SSID", "my_wifi_password")
-                    //->set_wifi_access_point("My AP SSID", "my_ap_password")
-                    //->set_sk_server("192.168.10.3", 80)
+                    //->set_wifi_client("Trevangsvej_197", "oliverjuhl")
+                    //->set_wifi_access_point("vp-motor-sensor", "oliverjuhl")
+                    //->set_sk_server("192.168.1.180", 80)
+                    //->set_sk_server("openplotter.local", 80)
+                    ->enable_uptime_sensor()
                     ->get_app();
+
+  //Init BMP280 Sensor
+  bme280.begin(0x76);
 
   // GPIO number to use for the analog input
   const uint8_t kAnalogInputPin = 36;
@@ -41,6 +58,49 @@ void setup() {
   // periodically.
   auto analog_input = std::make_shared<AnalogInput>(
       kAnalogInputPin, kAnalogInputReadInterval, "", kAnalogInputScale);
+
+  DallasTemperatureSensors* dts = new DallasTemperatureSensors(ONE_WIRE_BUS_PIN);
+
+  //exhaust temp.
+  auto* exhaust_temp =
+      new OneWireTemperature(dts, 1000, "/Exhaust Temperature/oneWire");
+  //oil temp.
+  auto* oil_temp =
+      new OneWireTemperature(dts, 1000, "/Oil Temperature/oneWire");
+
+  //enginge room temp.
+  //auto* engineRoom_temp =
+  //    new OneWireTemperature(dts, 1000, "/EngineRoom Temperature/oneWire");
+
+  //enginge room temp.
+  auto* engine_room_temp =
+      new RepeatSensor<float>(5000, read_temp_callback);
+
+  //enginge room air preasure
+  auto* engine_room_pressure = 
+      new RepeatSensor<float>(60000, read_pressure_callback);
+
+  //exhaust temp
+  exhaust_temp->connect_to(new Linear(1.0, 0.0, "/Exhaust Temperature/linear"))
+      ->connect_to( 
+          new SKOutputFloat("propulsion.engine.1.exhaustTemperature","/Exhaust Temperature/sk_path"));
+  
+  //oil temp
+  oil_temp->connect_to(new Linear(1.0, 0.0, "/Oil Temperature/linear"))
+      ->connect_to(
+          new SKOutputFloat("propulsion.engine.1.oilTemperature","/Oil Temperature/sk_path"));
+
+  //enginge temp
+  //engineRoom_temp->connect_to(new Linear(1.0, 0.0, "/EngineRoom Temperature/linear"))
+  //    ->connect_to(
+  //        new SKOutputFloat("environment.inside.engineRoom.temperature","/EngineRoom Temperature/sk_path"));
+
+  // Send the temperature to the Signal K server
+  engine_room_temp->connect_to(new SKOutputFloat("propulsion.engineRoom.temperature"));
+  
+  // Send the air preasure to the Signal K server
+  engine_room_pressure->connect_to(new SKOutputFloat("propulsion.engineRoom.pressure"));
+
 
   // Add an observer that prints out the current value of the analog input
   // every time it changes.
