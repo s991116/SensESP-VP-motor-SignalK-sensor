@@ -1,20 +1,22 @@
 // Signal K application file.
 //
 
+#include <Adafruit_BME280.h>
+
 #include <memory>
 
+#include "Arduino.h"
 #include "sensesp.h"
 #include "sensesp/sensors/analog_input.h"
 #include "sensesp/sensors/digital_input.h"
 #include "sensesp/sensors/sensor.h"
 #include "sensesp/signalk/signalk_output.h"
 #include "sensesp/system/lambda_consumer.h"
+#include "sensesp/transforms/frequency.h"
+#include "sensesp/transforms/linear.h"
+#include "sensesp/transforms/moving_average.h"
 #include "sensesp_app_builder.h"
 #include "sensesp_onewire/onewire_temperature.h"
-#include "sensesp/transforms/linear.h"
-#include "sensesp/transforms/frequency.h"
-#include "sensesp/transforms/moving_average.h"
-#include <Adafruit_BME280.h>
 
 using namespace sensesp;
 using namespace sensesp::onewire;
@@ -23,8 +25,11 @@ using namespace sensesp::onewire;
 #define ONE_WIRE_BUS_PIN (16)
 #define BILGE_SWITCH_PIN (25)
 
-Adafruit_BME280 bme280; // I2C
+void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
+void EngineBlockOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
+void EngineCoolantOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 
+Adafruit_BME280 bme280; // I2C
 float read_temp_callback() { return (bme280.readTemperature());}
 float read_pressure_callback() { return (bme280.readPressure());}
 
@@ -71,29 +76,9 @@ void setup() {
   ESP_LOGD(__FILE__, "Initializing OneWire temp.");
   DallasTemperatureSensors* dts = new DallasTemperatureSensors(ONE_WIRE_BUS_PIN);
 
-  //Exhaust temp.
-  auto* exhaust_temp =
-      new OneWireTemperature(dts, 1000, "/Exhaust Temperature/oneWire");
-
-  exhaust_temp->connect_to(new Linear(1.0, 0.0, "/Exhaust Temperature/linear"))
-      ->connect_to( 
-          new SKOutputFloat("propulsion.engine.1.exhaustTemperature","/Exhaust Temperature/sk_path"));
-
-  //Engine block teamp.
-  auto* enginge_block_temp =
-      new OneWireTemperature(dts, 1000, "/Engine block Temperature/oneWire");
-
-  enginge_block_temp->connect_to(new Linear(1.0, 0.0, "/Engine block Temperature/linear"))
-      ->connect_to( 
-          new SKOutputFloat("propulsion.engine.1.engineBlockTemperature","/Engine Block Temperature/sk_path"));
-
-  //Engine coolant teamp.
-  auto* enginge_coolant_temp =
-      new OneWireTemperature(dts, 1000, "/Engine coolant Temperature/oneWire");
-
-  enginge_coolant_temp->connect_to(new Linear(1.0, 0.0, "/Engine coolant Temperature/linear"))
-      ->connect_to( 
-          new SKOutputFloat("propulsion.engine.1.engineCoolantTemperature","/Engine Coolant Temperature/sk_path"));
+  ExhaustOneWireTemperatureSetup(dts);
+  EngineBlockOneWireTemperatureSetup(dts);
+  EngineCoolantOneWireTemperatureSetup(dts);
 
   //RPM Application/////
   const char* config_path_calibrate = "/Engine RPM/calibrate";
@@ -114,11 +99,47 @@ void setup() {
   //        ->connect_to(new FuelInterpreter("/Engine Fuel/curve"))
   //        ->connect_to(new SKOutputFloat("propulsion.engine.fuel.rate", "/Engine Fuel/sk_path"));                                       
 
+  //// Bilge Monitor /////
+
+  auto* bilge = new DigitalInputState(25, INPUT_PULLUP, 5000);
+
+
+  bilge->connect_to(new SKOutputBool("propulsion.engine.bilge","/Engine Bilge filled/sk_path"));
+
+
   // To avoid garbage collecting all shared pointers created in setup(),
   // loop from here.
   while (true) {
     loop();
   }
 }
+
+void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
+  auto* exhaust_temp =
+      new OneWireTemperature(dts, 1000, "/Exhaust Temperature/oneWire");
+
+  exhaust_temp->connect_to(new Linear(1.0, 0.0, "/Exhaust Temperature/linear"))
+      ->connect_to(new SKOutputFloat("propulsion.engine.1.exhaustTemperature",
+                                     "/Exhaust Temperature/sk_path"));
+}
+
+void EngineBlockOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
+  auto* enginge_block_temp =
+      new OneWireTemperature(dts, 1000, "/Engine block Temperature/oneWire");
+
+  enginge_block_temp->connect_to(new Linear(1.0, 0.0, "/Engine block Temperature/linear"))
+      ->connect_to( 
+          new SKOutputFloat("propulsion.engine.1.engineBlockTemperature","/Engine Block Temperature/sk_path"));
+}
+
+void EngineCoolantOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
+  auto* enginge_coolant_temp =
+      new OneWireTemperature(dts, 1000, "/Engine coolant Temperature/oneWire");
+
+  enginge_coolant_temp->connect_to(new Linear(1.0, 0.0, "/Engine coolant Temperature/linear"))
+      ->connect_to( 
+          new SKOutputFloat("propulsion.engine.1.engineCoolantTemperature","/Engine Coolant Temperature/sk_path"));
+}
+
 
 void loop() { event_loop()->tick(); }
