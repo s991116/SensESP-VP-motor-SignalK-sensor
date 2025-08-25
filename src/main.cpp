@@ -46,13 +46,32 @@ void setup() {
                     ->enable_uptime_sensor()
                     ->get_app();
 
-  //Init BMP280 Sensor
+  /// Engine Room Temp Sensor ////  
+  // 0x77 is the default address. Some chips use 0x76, which is shown here.
+  // If you need to use the TwoWire library instead of the Wire library, there
+  // is a different constructor: see bmp280.h
+
   bme280.begin(0x76);
 
+  // Create a RepeatSensor with float output that reads the temperature
+  // using the function defined above.
+  auto* engine_room_temp =
+      new RepeatSensor<float>(5000, read_temp_callback);
+
+  auto* engine_room_pressure = 
+      new RepeatSensor<float>(60000, read_pressure_callback);
+
+  // Send the temperature to the Signal K server as a Float
+  engine_room_temp->connect_to(new SKOutputFloat("propulsion.engineRoom.temperature"));
+
+  engine_room_pressure->connect_to(new SKOutputFloat("propulsion.engineRoom.pressure"));
+
+
+  /// Engine temperatur sensors ///
   ESP_LOGD(__FILE__, "Initializing OneWire temp.");
   DallasTemperatureSensors* dts = new DallasTemperatureSensors(ONE_WIRE_BUS_PIN);
 
-  //exhaust temp.
+  //Exhaust temp.
   auto* exhaust_temp =
       new OneWireTemperature(dts, 1000, "/Exhaust Temperature/oneWire");
 
@@ -60,7 +79,7 @@ void setup() {
       ->connect_to( 
           new SKOutputFloat("propulsion.engine.1.exhaustTemperature","/Exhaust Temperature/sk_path"));
 
-  //engine block teamp.
+  //Engine block teamp.
   auto* enginge_block_temp =
       new OneWireTemperature(dts, 1000, "/Engine block Temperature/oneWire");
 
@@ -68,7 +87,7 @@ void setup() {
       ->connect_to( 
           new SKOutputFloat("propulsion.engine.1.engineBlockTemperature","/Engine Block Temperature/sk_path"));
 
-  //engine coolant teamp.
+  //Engine coolant teamp.
   auto* enginge_coolant_temp =
       new OneWireTemperature(dts, 1000, "/Engine coolant Temperature/oneWire");
 
@@ -94,7 +113,6 @@ void setup() {
   //        ->connect_to(new MovingAverage(4, 1.0,"/Engine Fuel/movingAVG"))
   //        ->connect_to(new FuelInterpreter("/Engine Fuel/curve"))
   //        ->connect_to(new SKOutputFloat("propulsion.engine.fuel.rate", "/Engine Fuel/sk_path"));                                       
-
 
   // To avoid garbage collecting all shared pointers created in setup(),
   // loop from here.
