@@ -39,8 +39,8 @@ void setup() {
                     ->set_hostname("vp-motor-sensor")
                     // Optionally, hard-code the WiFi and Signal K server
                     // settings. This is normally not needed.
-                    //->set_wifi_client("Trevangsvej_197", "oliverjuhl")
-                    //->set_wifi_access_point("vp-motor-sensor", "oliverjuhl")
+                    //->set_wifi_client("Trevangsvej_197", "xx")
+                    //->set_wifi_access_point("vp-motor-sensor", "xx")
                     //->set_sk_server("192.168.1.180", 80)
                     //->set_sk_server("openplotter.local", 80)
                     ->enable_uptime_sensor()
