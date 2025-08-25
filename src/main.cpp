@@ -12,13 +12,16 @@
 #include "sensesp_app_builder.h"
 #include "sensesp_onewire/onewire_temperature.h"
 #include "sensesp/transforms/linear.h"
+#include "sensesp/transforms/frequency.h"
+#include "sensesp/transforms/moving_average.h"
 #include <Adafruit_BME280.h>
-
 
 using namespace sensesp;
 using namespace sensesp::onewire;
 
-#define ONE_WIRE_BUS_PIN 15
+#define RPM_COUNTER_PIN   (4)
+#define ONE_WIRE_BUS_PIN (16)
+#define BILGE_SWITCH_PIN (25)
 
 Adafruit_BME280 bme280; // I2C
 
@@ -46,146 +49,45 @@ void setup() {
   //Init BMP280 Sensor
   bme280.begin(0x76);
 
-  // GPIO number to use for the analog input
-  const uint8_t kAnalogInputPin = 36;
-  // Define how often (in milliseconds) new samples are acquired
-  const unsigned int kAnalogInputReadInterval = 500;
-  // Define the produced value at the maximum input voltage (3.3V).
-  // A value of 3.3 gives output equal to the input voltage.
-  const float kAnalogInputScale = 3.3;
-
-  // Create a new Analog Input Sensor that reads an analog input pin
-  // periodically.
-  auto analog_input = std::make_shared<AnalogInput>(
-      kAnalogInputPin, kAnalogInputReadInterval, "", kAnalogInputScale);
-
+  ESP_LOGD(__FILE__, "Initializing OneWire temp.");
   DallasTemperatureSensors* dts = new DallasTemperatureSensors(ONE_WIRE_BUS_PIN);
 
   //exhaust temp.
   auto* exhaust_temp =
       new OneWireTemperature(dts, 1000, "/Exhaust Temperature/oneWire");
-  //oil temp.
-  auto* oil_temp =
-      new OneWireTemperature(dts, 1000, "/Oil Temperature/oneWire");
 
-  //enginge room temp.
-  //auto* engineRoom_temp =
-  //    new OneWireTemperature(dts, 1000, "/EngineRoom Temperature/oneWire");
-
-  //enginge room temp.
-  auto* engine_room_temp =
-      new RepeatSensor<float>(5000, read_temp_callback);
-
-  //enginge room air preasure
-  auto* engine_room_pressure = 
-      new RepeatSensor<float>(60000, read_pressure_callback);
-
-  //exhaust temp
   exhaust_temp->connect_to(new Linear(1.0, 0.0, "/Exhaust Temperature/linear"))
       ->connect_to( 
           new SKOutputFloat("propulsion.engine.1.exhaustTemperature","/Exhaust Temperature/sk_path"));
-  
-  //oil temp
-  oil_temp->connect_to(new Linear(1.0, 0.0, "/Oil Temperature/linear"))
-      ->connect_to(
-          new SKOutputFloat("propulsion.engine.1.oilTemperature","/Oil Temperature/sk_path"));
 
-  //enginge temp
-  //engineRoom_temp->connect_to(new Linear(1.0, 0.0, "/EngineRoom Temperature/linear"))
-  //    ->connect_to(
-  //        new SKOutputFloat("environment.inside.engineRoom.temperature","/EngineRoom Temperature/sk_path"));
+  //engine block teamp.
+  auto* enginge_block_temp =
+      new OneWireTemperature(dts, 1000, "/Engine block Temperature/oneWire");
 
-  // Send the temperature to the Signal K server
-  engine_room_temp->connect_to(new SKOutputFloat("propulsion.engineRoom.temperature"));
-  
-  // Send the air preasure to the Signal K server
-  engine_room_pressure->connect_to(new SKOutputFloat("propulsion.engineRoom.pressure"));
+  enginge_block_temp->connect_to(new Linear(1.0, 0.0, "/Engine block Temperature/linear"))
+      ->connect_to( 
+          new SKOutputFloat("propulsion.engine.1.engineBlockTemperature","/Engine Block Temperature/sk_path"));
 
 
-  // Add an observer that prints out the current value of the analog input
-  // every time it changes.
-  analog_input->attach([analog_input]() {
-    debugD("Analog input value: %f", analog_input->get());
-  });
+  //RPM Application/////
+  const char* config_path_calibrate = "/Engine RPM/calibrate";
+  const char* config_path_skpath = "/Engine RPM/sk_path";
+  const float multiplier = 1.0;
 
-  // Set GPIO pin 15 to output and toggle it every 650 ms
+  auto* sensor = new DigitalInputCounter(RPM_COUNTER_PIN, INPUT_PULLUP, RISING, 500);
 
-  const uint8_t kDigitalOutputPin = 15;
-  const unsigned int kDigitalOutputInterval = 650;
-  pinMode(kDigitalOutputPin, OUTPUT);
-  event_loop()->onRepeat(kDigitalOutputInterval, [kDigitalOutputPin]() {
-    digitalWrite(kDigitalOutputPin, !digitalRead(kDigitalOutputPin));
-  });
+  sensor->connect_to(new Frequency(multiplier, config_path_calibrate))  
+  // connect the output of sensor to the input of Frequency()
+         ->connect_to(new MovingAverage(2, 1.0,"/Engine RPM/movingAVG"))
+         ->connect_to(new SKOutputFloat("propulsion.engine.revolutions", config_path_skpath));  
+          // connect the output of Frequency() to a Signal K Output as a number
 
-  // Read GPIO 14 every time it changes
+  //sensor->connect_to(new Frequency(6))
+  // times by 6 to go from Hz to RPM
+  //        ->connect_to(new MovingAverage(4, 1.0,"/Engine Fuel/movingAVG"))
+  //        ->connect_to(new FuelInterpreter("/Engine Fuel/curve"))
+  //        ->connect_to(new SKOutputFloat("propulsion.engine.fuel.rate", "/Engine Fuel/sk_path"));                                       
 
-  const uint8_t kDigitalInput1Pin = 14;
-  auto digital_input1 = std::make_shared<DigitalInputChange>(
-      kDigitalInput1Pin, INPUT_PULLUP, CHANGE);
-
-  // Connect the digital input to a lambda consumer that prints out the
-  // value every time it changes.
-
-  // Test this yourself by connecting pin 15 to pin 14 with a jumper wire and
-  // see if the value changes!
-
-  auto digital_input1_consumer = std::make_shared<LambdaConsumer<bool>>(
-      [](bool input) { debugD("Digital input value changed: %d", input); });
-
-  digital_input1->connect_to(digital_input1_consumer);
-
-  // Create another digital input, this time with RepeatSensor. This approach
-  // can be used to connect external sensor library to SensESP!
-
-  const uint8_t kDigitalInput2Pin = 13;
-  const unsigned int kDigitalInput2Interval = 1000;
-
-  // Configure the pin. Replace this with your custom library initialization
-  // code!
-  pinMode(kDigitalInput2Pin, INPUT_PULLUP);
-
-  // Define a new RepeatSensor that reads the pin every 100 ms.
-  // Replace the lambda function internals with the input routine of your custom
-  // library.
-
-  // Again, test this yourself by connecting pin 15 to pin 13 with a jumper
-  // wire and see if the value changes!
-
-  auto digital_input2 = std::make_shared<RepeatSensor<bool>>(
-      kDigitalInput2Interval,
-      [kDigitalInput2Pin]() { return digitalRead(kDigitalInput2Pin); });
-
-  // Connect the analog input to Signal K output. This will publish the
-  // analog input value to the Signal K server every time it changes.
-  auto aiv_metadata = std::make_shared<SKMetadata>("V", "Analog input voltage");
-  auto aiv_sk_output = std::make_shared<SKOutput<float>>(
-      "sensors.analog_input.voltage",   // Signal K path
-      "/Sensors/Analog Input/Voltage",  // configuration path, used in the
-                                        // web UI and for storing the
-                                        // configuration
-      aiv_metadata
-  );
-
-  ConfigItem(aiv_sk_output)
-      ->set_title("Analog Input Voltage SK Output Path")
-      ->set_description("The SK path to publish the analog input voltage")
-      ->set_sort_order(100);
-
-  analog_input->connect_to(aiv_sk_output);
-
-  // Connect digital input 2 to Signal K output.
-  auto di2_metadata = std::make_shared<SKMetadata>("", "Digital input 2 value");
-  auto di2_sk_output = std::make_shared<SKOutput<bool>>(
-      "sensors.digital_input2.value",    // Signal K path
-      "/Sensors/Digital Input 2/Value",  // configuration path
-      di2_metadata
-  );
-
-  ConfigItem(di2_sk_output)
-      ->set_title("Digital Input 2 SK Output Path")
-      ->set_sort_order(200);
-
-  digital_input2->connect_to(di2_sk_output);
 
   // To avoid garbage collecting all shared pointers created in setup(),
   // loop from here.
