@@ -1,7 +1,7 @@
 // Signal K application file.
 //
 
-#include <Adafruit_BME280.h>
+#include <Adafruit_BMP280.h>
 
 #include <memory>
 
@@ -24,14 +24,16 @@ using namespace sensesp::onewire;
 #define RPM_COUNTER_PIN   (4)
 #define ONE_WIRE_BUS_PIN (16)
 #define BILGE_SWITCH_PIN (25)
+//SDA GPIO 21
+//SCL GPIO 22
 
 void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 void EngineBlockOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 void EngineCoolantOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 
-Adafruit_BME280 bme280; // I2C
-float read_temp_callback() { return (bme280.readTemperature());}
-float read_pressure_callback() { return (bme280.readPressure());}
+Adafruit_BMP280 bmp280; // I2C
+float read_temp_callback() { return (bmp280.readTemperature());}
+float read_pressure_callback() { return (bmp280.readPressure());}
 
 // The setup function performs one-time application initialization.
 void setup() {
@@ -52,11 +54,7 @@ void setup() {
                     ->get_app();
 
   /// Engine Room Temp Sensor ////  
-  // 0x77 is the default address. Some chips use 0x76, which is shown here.
-  // If you need to use the TwoWire library instead of the Wire library, there
-  // is a different constructor: see bmp280.h
-
-  bme280.begin(0x76);
+  bmp280.begin(0x76);
 
   // Create a RepeatSensor with float output that reads the temperature
   // using the function defined above.
@@ -67,9 +65,9 @@ void setup() {
       new RepeatSensor<float>(60000, read_pressure_callback);
 
   // Send the temperature to the Signal K server as a Float
-  engine_room_temp->connect_to(new SKOutputFloat("propulsion.engineRoom.temperature"));
+  engine_room_temp->connect_to(new SKOutputFloat("propulsion.engineRoom.temperature","/Engineroom Temperature/sk_path"));
 
-  engine_room_pressure->connect_to(new SKOutputFloat("propulsion.engineRoom.pressure"));
+  engine_room_pressure->connect_to(new SKOutputFloat("propulsion.engineRoom.pressure","/Engineroom Preasure/sk_path"));
 
 
   /// Engine temperatur sensors ///
