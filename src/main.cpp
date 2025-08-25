@@ -68,6 +68,13 @@ void setup() {
       ->connect_to( 
           new SKOutputFloat("propulsion.engine.1.engineBlockTemperature","/Engine Block Temperature/sk_path"));
 
+  //engine coolant teamp.
+  auto* enginge_coolant_temp =
+      new OneWireTemperature(dts, 1000, "/Engine coolant Temperature/oneWire");
+
+  enginge_coolant_temp->connect_to(new Linear(1.0, 0.0, "/Engine coolant Temperature/linear"))
+      ->connect_to( 
+          new SKOutputFloat("propulsion.engine.1.engineCoolantTemperature","/Engine Coolant Temperature/sk_path"));
 
   //RPM Application/////
   const char* config_path_calibrate = "/Engine RPM/calibrate";
