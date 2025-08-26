@@ -1,6 +1,3 @@
-// Signal K application file.
-//
-
 #include <Adafruit_BMP280.h>
 
 #include <memory>
@@ -30,6 +27,9 @@ using namespace sensesp::onewire;
 void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 void EngineBlockOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 void EngineCoolantOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
+void EngingRPMCounterSetup();
+void EngineBilgeMonitorSetup();
+void EngineRoomTempSetup();
 
 Adafruit_BMP280 bmp280; // I2C
 float read_temp_callback() { return (bmp280.readTemperature());}
@@ -53,63 +53,42 @@ void setup() {
                     ->enable_uptime_sensor()
                     ->get_app();
 
-  /// Engine Room Temp Sensor ////  
-  bmp280.begin(0x76);
+  EngineRoomTempSetup();
 
-  // Create a RepeatSensor with float output that reads the temperature
-  // using the function defined above.
-  auto* engine_room_temp =
-      new RepeatSensor<float>(5000, read_temp_callback);
-
-  auto* engine_room_pressure = 
-      new RepeatSensor<float>(60000, read_pressure_callback);
-
-  // Send the temperature to the Signal K server as a Float
-  engine_room_temp->connect_to(new SKOutputFloat("propulsion.engineRoom.temperature","/Engineroom Temperature/sk_path"));
-
-  engine_room_pressure->connect_to(new SKOutputFloat("propulsion.engineRoom.pressure","/Engineroom Preasure/sk_path"));
-
-
-  /// Engine temperatur sensors ///
-  ESP_LOGD(__FILE__, "Initializing OneWire temp.");
   DallasTemperatureSensors* dts = new DallasTemperatureSensors(ONE_WIRE_BUS_PIN);
-
   ExhaustOneWireTemperatureSetup(dts);
   EngineBlockOneWireTemperatureSetup(dts);
   EngineCoolantOneWireTemperatureSetup(dts);
-
-  //RPM Application/////
-  const char* config_path_calibrate = "/Engine RPM/calibrate";
-  const char* config_path_skpath = "/Engine RPM/sk_path";
-  const float multiplier = 1.0;
-
-  auto* sensor = new DigitalInputCounter(RPM_COUNTER_PIN, INPUT_PULLUP, RISING, 500);
-
-  sensor->connect_to(new Frequency(multiplier, config_path_calibrate))  
-  // connect the output of sensor to the input of Frequency()
-         ->connect_to(new MovingAverage(2, 1.0,"/Engine RPM/movingAVG"))
-         ->connect_to(new SKOutputFloat("propulsion.engine.revolutions", config_path_skpath));  
-          // connect the output of Frequency() to a Signal K Output as a number
-
-  //sensor->connect_to(new Frequency(6))
-  // times by 6 to go from Hz to RPM
-  //        ->connect_to(new MovingAverage(4, 1.0,"/Engine Fuel/movingAVG"))
-  //        ->connect_to(new FuelInterpreter("/Engine Fuel/curve"))
-  //        ->connect_to(new SKOutputFloat("propulsion.engine.fuel.rate", "/Engine Fuel/sk_path"));                                       
-
-  //// Bilge Monitor /////
-
-  auto* bilge = new DigitalInputState(25, INPUT_PULLUP, 5000);
-
-
-  bilge->connect_to(new SKOutputBool("propulsion.engine.bilge","/Engine Bilge filled/sk_path"));
-
+  
+  EngingRPMCounterSetup();
+  EngineBilgeMonitorSetup();
 
   // To avoid garbage collecting all shared pointers created in setup(),
   // loop from here.
   while (true) {
     loop();
   }
+}
+
+void loop() { event_loop()->tick(); }
+
+void EngineRoomTempSetup() {
+  /// Engine Room Temp Sensor ////
+  bmp280.begin(0x76);
+
+  // Create a RepeatSensor with float output that reads the temperature
+  // using the function defined above.
+  auto* engine_room_temp = new RepeatSensor<float>(5000, read_temp_callback);
+
+  auto* engine_room_pressure =
+      new RepeatSensor<float>(60000, read_pressure_callback);
+
+  // Send the temperature to the Signal K server as a Float
+  engine_room_temp->connect_to(new SKOutputFloat(
+      "propulsion.engineRoom.temperature", "/Engineroom Temperature/sk_path"));
+
+  engine_room_pressure->connect_to(new SKOutputFloat(
+      "propulsion.engineRoom.pressure", "/Engineroom Preasure/sk_path"));
 }
 
 void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
@@ -139,5 +118,32 @@ void EngineCoolantOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSen
           new SKOutputFloat("propulsion.engine.1.engineCoolantTemperature","/Engine Coolant Temperature/sk_path"));
 }
 
+void EngingRPMCounterSetup() {
+  const char* config_path_calibrate = "/Engine RPM/calibrate";
+  const char* config_path_skpath = "/Engine RPM/sk_path";
+  const float multiplier = 1.0;
 
-void loop() { event_loop()->tick(); }
+  auto* sensor =
+      new DigitalInputCounter(RPM_COUNTER_PIN, INPUT_PULLUP, RISING, 500);
+
+  sensor
+      ->connect_to(new Frequency(multiplier, config_path_calibrate))
+      // connect the output of sensor to the input of Frequency()
+      ->connect_to(new MovingAverage(2, 1.0, "/Engine RPM/movingAVG"))
+      ->connect_to(new SKOutputFloat("propulsion.engine.revolutions",
+                                     config_path_skpath));
+  // connect the output of Frequency() to a Signal K Output as a number
+
+  // sensor->connect_to(new Frequency(6))
+  //  times by 6 to go from Hz to RPM
+  //         ->connect_to(new MovingAverage(4, 1.0,"/Engine Fuel/movingAVG"))
+  //         ->connect_to(new FuelInterpreter("/Engine Fuel/curve"))
+  //         ->connect_to(new SKOutputFloat("propulsion.engine.fuel.rate",
+  //         "/Engine Fuel/sk_path"));
+}
+
+void EngineBilgeMonitorSetup() {
+  auto* bilge = new DigitalInputState(25, INPUT_PULLUP, 5000);
+  bilge->connect_to(new SKOutputBool("propulsion.engine.bilge",
+                                     "/Engine Bilge filled/sk_path"));
+}
