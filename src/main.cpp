@@ -74,14 +74,14 @@ void loop() { event_loop()->tick(); }
 
 void EngineRoomTempSetup() {
   /// Engine Room Temp Sensor ////
+  Wire.begin();
   bmp280.begin(0x76);
 
   // Create a RepeatSensor with float output that reads the temperature
   // using the function defined above.
   auto* engine_room_temp = new RepeatSensor<float>(5000, read_temp_callback);
 
-  auto* engine_room_pressure =
-      new RepeatSensor<float>(60000, read_pressure_callback);
+  auto* engine_room_pressure = new RepeatSensor<float>(60000, read_pressure_callback);
 
   // Send the temperature to the Signal K server as a Float
   engine_room_temp->connect_to(new SKOutputFloat(
@@ -143,7 +143,7 @@ void EngingRPMCounterSetup() {
 }
 
 void EngineBilgeMonitorSetup() {
-  auto* bilge = new DigitalInputState(25, INPUT_PULLUP, 5000);
+  auto* bilge = new DigitalInputState(BILGE_SWITCH_PIN, INPUT_PULLDOWN, 5000);
   bilge->connect_to(new SKOutputBool("propulsion.engine.bilge",
                                      "/Engine Bilge filled/sk_path"));
 }
