@@ -23,6 +23,7 @@ using namespace sensesp::onewire;
 #define BILGE_SWITCH_PIN (25)
 //SDA GPIO 21
 //SCL GPIO 22
+#define BMP280_I2C_Address (0x76)
 
 void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 void EngineBlockOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
@@ -75,7 +76,7 @@ void loop() { event_loop()->tick(); }
 void EngineRoomTempSetup() {
   /// Engine Room Temp Sensor ////
   Wire.begin();
-  bmp280.begin(0x76);
+  bmp280.begin(BMP280_I2C_Address);
 
   // Create a RepeatSensor with float output that reads the temperature
   // using the function defined above.
