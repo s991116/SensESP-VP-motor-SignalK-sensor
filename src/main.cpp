@@ -1,5 +1,3 @@
-#include <Adafruit_BMP280.h>
-
 #include <memory>
 
 #include "Arduino.h"
@@ -21,20 +19,12 @@ using namespace sensesp::onewire;
 #define RPM_COUNTER_PIN   (4)
 #define ONE_WIRE_BUS_PIN (16)
 #define BILGE_SWITCH_PIN (25)
-//SDA GPIO 21
-//SCL GPIO 22
-#define BMP280_I2C_Address (0x76)
 
 void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 void EngineBlockOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 void EngineCoolantOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 void EngingRPMCounterSetup();
 void EngineBilgeMonitorSetup();
-void EngineRoomTempSetup();
-
-Adafruit_BMP280 bmp280; // I2C
-float read_temp_callback() { return (bmp280.readTemperature());}
-float read_pressure_callback() { return (bmp280.readPressure());}
 
 // The setup function performs one-time application initialization.
 void setup() {
@@ -54,8 +44,6 @@ void setup() {
                     ->enable_uptime_sensor()
                     ->get_app();
 
-  EngineRoomTempSetup();
-
   DallasTemperatureSensors* dts = new DallasTemperatureSensors(ONE_WIRE_BUS_PIN);
   ExhaustOneWireTemperatureSetup(dts);
   EngineBlockOneWireTemperatureSetup(dts);
@@ -72,25 +60,6 @@ void setup() {
 }
 
 void loop() { event_loop()->tick(); }
-
-void EngineRoomTempSetup() {
-  /// Engine Room Temp Sensor ////
-  Wire.begin();
-  bmp280.begin(BMP280_I2C_Address);
-
-  // Create a RepeatSensor with float output that reads the temperature
-  // using the function defined above.
-  auto* engine_room_temp = new RepeatSensor<float>(5000, read_temp_callback);
-
-  auto* engine_room_pressure = new RepeatSensor<float>(60000, read_pressure_callback);
-
-  // Send the temperature to the Signal K server as a Float
-  engine_room_temp->connect_to(new SKOutputFloat(
-      "propulsion.engineRoom.temperature", "/Engineroom Temperature/sk_path"));
-
-  engine_room_pressure->connect_to(new SKOutputFloat(
-      "propulsion.engineRoom.pressure", "/Engineroom Preasure/sk_path"));
-}
 
 void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
   auto* exhaust_temp =
