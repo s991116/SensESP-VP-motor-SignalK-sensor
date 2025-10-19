@@ -21,7 +21,7 @@ using namespace sensesp::onewire;
 #define BILGE_SWITCH_PIN (25)
 
 void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
-void EngineBlockOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
+void EngineRoomOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 void EngineCoolantOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 void EngingRPMCounterSetup();
 void EngineBilgeMonitorSetup();
@@ -45,10 +45,23 @@ void setup() {
                     ->get_app();
 
   DallasTemperatureSensors* dts = new DallasTemperatureSensors(ONE_WIRE_BUS_PIN);
-  ExhaustOneWireTemperatureSetup(dts);
-  EngineBlockOneWireTemperatureSetup(dts);
-  EngineCoolantOneWireTemperatureSetup(dts);
   
+  /*
+  //3 -> 1 , 2 -> 1 , 3 -> 2
+  //A
+  EngineRoomOneWireTemperatureSetup(dts);
+  //B
+  EngineCoolantOneWireTemperatureSetup(dts);
+  //C
+  ExhaustOneWireTemperatureSetup(dts);  
+  */
+  //A
+  EngineCoolantOneWireTemperatureSetup(dts);
+  //B
+  ExhaustOneWireTemperatureSetup(dts);  
+  //C
+  EngineRoomOneWireTemperatureSetup(dts);
+
   EngingRPMCounterSetup();
   EngineBilgeMonitorSetup();
 
@@ -62,30 +75,28 @@ void setup() {
 void loop() { event_loop()->tick(); }
 
 void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
-  auto* exhaust_temp =
-      new OneWireTemperature(dts, 1000, "/Exhaust Temperature/oneWire");
+  auto* exhaust_temp = new OneWireTemperature(dts, 1000, "/exhaustTemperature/oneWire");
 
-  exhaust_temp->connect_to(new Linear(1.0, 0.0, "/Exhaust Temperature/linear"))
-      ->connect_to(new SKOutputFloat("propulsion.engine.1.exhaustTemperature",
-                                     "/Exhaust Temperature/sk_path"));
+  auto* exhaust_temp_calibration = new Linear(1.0, 0.0, "/exhaustTemperature/linear");
+  auto* exhaust_temp_sk_output = new SKOutputFloat("propulsion.mainEngine.exhaustTemperature", "/exhaustTemperature/skPath");
+  exhaust_temp->connect_to(exhaust_temp_calibration)->connect_to(exhaust_temp_sk_output);
 }
 
-void EngineBlockOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
-  auto* enginge_block_temp =
-      new OneWireTemperature(dts, 1000, "/Engine block Temperature/oneWire");
+void EngineRoomOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
+  auto* engine_room_temp = new OneWireTemperature(dts, 1000, "/engineRoomTemperature/oneWire");
 
-  enginge_block_temp->connect_to(new Linear(1.0, 0.0, "/Engine block Temperature/linear"))
-      ->connect_to( 
-          new SKOutputFloat("propulsion.engine.1.engineBlockTemperature","/Engine Block Temperature/sk_path"));
+  auto* engine_room_temp_calibration = new Linear(1.0, 0.0, "/engineRoomTemperature/linear");
+  auto* engine_room_temp_sk_output = new SKOutputFloat("/environment/inside/engineRoom/temperature", "/exhaustTemperature/skPath");
+  engine_room_temp->connect_to(engine_room_temp_calibration)->connect_to(engine_room_temp_sk_output);
+
 }
 
 void EngineCoolantOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
-  auto* enginge_coolant_temp =
-      new OneWireTemperature(dts, 1000, "/Engine coolant Temperature/oneWire");
+  auto* coolant_temp = new OneWireTemperature(dts, 1000, "/coolantTemperature/oneWire");
 
-  enginge_coolant_temp->connect_to(new Linear(1.0, 0.0, "/Engine coolant Temperature/linear"))
-      ->connect_to( 
-          new SKOutputFloat("propulsion.engine.1.engineCoolantTemperature","/Engine Coolant Temperature/sk_path"));
+  auto* coolant_temp_calibration = new Linear(1.0, 0.0, "/coolantTemperature/linear");
+  auto* coolant_temp_sk_output = new SKOutputFloat("propulsion.mainEngine.coolantTemperature", "/coolantTemperature/skPath");
+  coolant_temp->connect_to(coolant_temp_calibration)->connect_to(coolant_temp_sk_output);  
 }
 
 void EngingRPMCounterSetup() {
@@ -102,18 +113,16 @@ void EngingRPMCounterSetup() {
       ->connect_to(new MovingAverage(2, 1.0, "/Engine RPM/movingAVG"))
       ->connect_to(new SKOutputFloat("propulsion.engine.revolutions",
                                      config_path_skpath));
-  // connect the output of Frequency() to a Signal K Output as a number
-
-  // sensor->connect_to(new Frequency(6))
-  //  times by 6 to go from Hz to RPM
-  //         ->connect_to(new MovingAverage(4, 1.0,"/Engine Fuel/movingAVG"))
-  //         ->connect_to(new FuelInterpreter("/Engine Fuel/curve"))
-  //         ->connect_to(new SKOutputFloat("propulsion.engine.fuel.rate",
-  //         "/Engine Fuel/sk_path"));
 }
+
+auto bilge_switch_invert_function = [](int input) -> bool {
+  return input == 0;
+};
 
 void EngineBilgeMonitorSetup() {
   auto* bilge = new DigitalInputState(BILGE_SWITCH_PIN, INPUT_PULLDOWN, 5000);
-  bilge->connect_to(new SKOutputBool("propulsion.engine.bilge",
+  auto* bilge_switch_invert = new LambdaTransform<int, bool>(bilge_switch_invert_function);
+  
+  bilge->connect_to(bilge_switch_invert)->connect_to(new SKOutputBool("propulsion.engine.bilge",
                                      "/Engine Bilge filled/sk_path"));
 }
