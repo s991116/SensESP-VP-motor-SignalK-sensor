@@ -86,7 +86,7 @@ void EngineRoomOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensor
   auto* engine_room_temp = new OneWireTemperature(dts, 1000, "/engineRoomTemperature/oneWire");
 
   auto* engine_room_temp_calibration = new Linear(1.0, 0.0, "/engineRoomTemperature/linear");
-  auto* engine_room_temp_sk_output = new SKOutputFloat("/environment/inside/engineRoom/temperature", "/exhaustTemperature/skPath");
+  auto* engine_room_temp_sk_output = new SKOutputFloat("environment.inside.engineRoom.temperature", "/exhaustTemperature/skPath");
   engine_room_temp->connect_to(engine_room_temp_calibration)->connect_to(engine_room_temp_sk_output);
 
 }
@@ -102,7 +102,7 @@ void EngineCoolantOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSen
 void EngingRPMCounterSetup() {
   const char* config_path_calibrate = "/Engine RPM/calibrate";
   const char* config_path_skpath = "/Engine RPM/sk_path";
-  const float multiplier = 1.0;
+  const float multiplier = 0.075275648;
 
   auto* sensor =
       new DigitalInputCounter(RPM_COUNTER_PIN, INPUT_PULLUP, RISING, 500);
