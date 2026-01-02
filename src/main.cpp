@@ -3,16 +3,9 @@
 #include "sensesp.h"
 #include "sensesp_app_builder.h"
 
-#include "sensesp/sensors/digital_input.h"
-#include "sensesp/system/lambda_consumer.h"
-#include "sensesp/transforms/frequency.h"
-#include "sensesp/transforms/linear.h"
-#include "sensesp/transforms/moving_average.h"
-
-#include "sensesp/signalk/signalk_output.h"
-
 #include "OneWireFactory.h"
 #include "EngineRpmFactory.h"
+#include "BilgeMonitorFactory.h"
 
 using namespace sensesp;
 using namespace sensesp::onewire;
@@ -20,9 +13,6 @@ using namespace sensesp::onewire;
 #define RPM_COUNTER_PIN   (4)
 #define ONE_WIRE_BUS_PIN (16)
 #define BILGE_SWITCH_PIN (25)
-
-void EngingRPMCounterSetup();
-void EngineBilgeMonitorSetup();
 
 // The setup function performs one-time application initialization.
 void setup() {
@@ -78,7 +68,8 @@ void setup() {
   engineRpm.create();
 
 
-  EngineBilgeMonitorSetup();
+  BilgeMonitorFactory bilgeFactory(BILGE_SWITCH_PIN);
+  bilgeFactory.create();
 
   // To avoid garbage collecting all shared pointers created in setup(),
   // loop from here.
@@ -88,15 +79,3 @@ void setup() {
 }
 
 void loop() { event_loop()->tick(); }
-
-auto bilge_switch_invert_function = [](int input) -> bool {
-  return input == 0;
-};
-
-void EngineBilgeMonitorSetup() {
-  auto* bilge = new DigitalInputState(BILGE_SWITCH_PIN, INPUT_PULLDOWN, 5000);
-  auto* bilge_switch_invert = new LambdaTransform<int, bool>(bilge_switch_invert_function);
-  
-  bilge->connect_to(bilge_switch_invert)->connect_to(new SKOutputBool("propulsion.engine.bilge",
-                                     "/Engine Bilge filled/sk_path"));
-}
