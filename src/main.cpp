@@ -1,18 +1,18 @@
-#include <memory>
-
 #include "Arduino.h"
+
 #include "sensesp.h"
-#include "sensesp/sensors/analog_input.h"
+#include "sensesp_app_builder.h"
+
 #include "sensesp/sensors/digital_input.h"
-#include "sensesp/sensors/sensor.h"
-#include "sensesp/signalk/signalk_output.h"
 #include "sensesp/system/lambda_consumer.h"
 #include "sensesp/transforms/frequency.h"
 #include "sensesp/transforms/linear.h"
 #include "sensesp/transforms/moving_average.h"
-#include "sensesp_app_builder.h"
-#include "sensesp_onewire/onewire_temperature.h"
+
+#include "sensesp/signalk/signalk_output.h"
+
 #include "OneWireFactory.h"
+#include "EngineRpmFactory.h"
 
 using namespace sensesp;
 using namespace sensesp::onewire;
@@ -65,7 +65,19 @@ void setup() {
     "environment.inside.engineRoom.temperature",
     "/engineRoomTemperature/skPath");
 
-  EngingRPMCounterSetup();
+  RpmSensorConfig engine_rpm_config(
+    RPM_COUNTER_PIN,
+    0.075275648,
+    "/Engine RPM/calibrate",
+    "/Engine RPM/movingAVG",
+    "propulsion.engine.revolutions",
+    "/Engine RPM/sk_path"
+  );
+
+  EngineRpmFactory engineRpm(engine_rpm_config);
+  engineRpm.create();
+
+
   EngineBilgeMonitorSetup();
 
   // To avoid garbage collecting all shared pointers created in setup(),
@@ -76,22 +88,6 @@ void setup() {
 }
 
 void loop() { event_loop()->tick(); }
-
-void EngingRPMCounterSetup() {
-  const char* config_path_calibrate = "/Engine RPM/calibrate";
-  const char* config_path_skpath = "/Engine RPM/sk_path";
-  const float multiplier = 0.075275648;
-
-  auto* sensor =
-      new DigitalInputCounter(RPM_COUNTER_PIN, INPUT_PULLUP, RISING, 500);
-
-  sensor
-      ->connect_to(new Frequency(multiplier, config_path_calibrate))
-      // connect the output of sensor to the input of Frequency()
-      ->connect_to(new MovingAverage(2, 1.0, "/Engine RPM/movingAVG"))
-      ->connect_to(new SKOutputFloat("propulsion.engine.revolutions",
-                                     config_path_skpath));
-}
 
 auto bilge_switch_invert_function = [](int input) -> bool {
   return input == 0;
