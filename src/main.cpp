@@ -12,6 +12,7 @@
 #include "sensesp/transforms/moving_average.h"
 #include "sensesp_app_builder.h"
 #include "sensesp_onewire/onewire_temperature.h"
+#include "OneWireFactory.h"
 
 using namespace sensesp;
 using namespace sensesp::onewire;
@@ -20,9 +21,6 @@ using namespace sensesp::onewire;
 #define ONE_WIRE_BUS_PIN (16)
 #define BILGE_SWITCH_PIN (25)
 
-void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
-void EngineRoomOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
-void EngineCoolantOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors *dts);
 void EngingRPMCounterSetup();
 void EngineBilgeMonitorSetup();
 
@@ -44,23 +42,28 @@ void setup() {
                     ->enable_uptime_sensor()
                     ->get_app();
 
-  DallasTemperatureSensors* dts = new DallasTemperatureSensors(ONE_WIRE_BUS_PIN);
-  
-  /*
-  //3 -> 1 , 2 -> 1 , 3 -> 2
-  //A
-  EngineRoomOneWireTemperatureSetup(dts);
-  //B
-  EngineCoolantOneWireTemperatureSetup(dts);
-  //C
-  ExhaustOneWireTemperatureSetup(dts);  
-  */
-  //A
-  EngineCoolantOneWireTemperatureSetup(dts);
-  //B
-  ExhaustOneWireTemperatureSetup(dts);  
-  //C
-  EngineRoomOneWireTemperatureSetup(dts);
+  OneWireFactory oneWireFactory(ONE_WIRE_BUS_PIN);
+
+  // A
+  oneWireFactory.createTemperatureSensor(
+    "/coolantTemperature/oneWire",
+    "/coolantTemperature/linear",
+    "propulsion.mainEngine.coolantTemperature",
+    "/coolantTemperature/skPath");
+
+  // B
+  oneWireFactory.createTemperatureSensor(
+    "/exhaustTemperature/oneWire",
+    "/exhaustTemperature/linear",
+    "propulsion.mainEngine.exhaustTemperature",
+    "/exhaustTemperature/skPath");
+
+  // C
+  oneWireFactory.createTemperatureSensor(
+    "/engineRoomTemperature/oneWire",
+    "/engineRoomTemperature/linear",
+    "environment.inside.engineRoom.temperature",
+    "/engineRoomTemperature/skPath");
 
   EngingRPMCounterSetup();
   EngineBilgeMonitorSetup();
@@ -73,31 +76,6 @@ void setup() {
 }
 
 void loop() { event_loop()->tick(); }
-
-void ExhaustOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
-  auto* exhaust_temp = new OneWireTemperature(dts, 1000, "/exhaustTemperature/oneWire");
-
-  auto* exhaust_temp_calibration = new Linear(1.0, 0.0, "/exhaustTemperature/linear");
-  auto* exhaust_temp_sk_output = new SKOutputFloat("propulsion.mainEngine.exhaustTemperature", "/exhaustTemperature/skPath");
-  exhaust_temp->connect_to(exhaust_temp_calibration)->connect_to(exhaust_temp_sk_output);
-}
-
-void EngineRoomOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
-  auto* engine_room_temp = new OneWireTemperature(dts, 1000, "/engineRoomTemperature/oneWire");
-
-  auto* engine_room_temp_calibration = new Linear(1.0, 0.0, "/engineRoomTemperature/linear");
-  auto* engine_room_temp_sk_output = new SKOutputFloat("environment.inside.engineRoom.temperature", "/exhaustTemperature/skPath");
-  engine_room_temp->connect_to(engine_room_temp_calibration)->connect_to(engine_room_temp_sk_output);
-
-}
-
-void EngineCoolantOneWireTemperatureSetup(sensesp::onewire::DallasTemperatureSensors* dts) {
-  auto* coolant_temp = new OneWireTemperature(dts, 1000, "/coolantTemperature/oneWire");
-
-  auto* coolant_temp_calibration = new Linear(1.0, 0.0, "/coolantTemperature/linear");
-  auto* coolant_temp_sk_output = new SKOutputFloat("propulsion.mainEngine.coolantTemperature", "/coolantTemperature/skPath");
-  coolant_temp->connect_to(coolant_temp_calibration)->connect_to(coolant_temp_sk_output);  
-}
 
 void EngingRPMCounterSetup() {
   const char* config_path_calibrate = "/Engine RPM/calibrate";
